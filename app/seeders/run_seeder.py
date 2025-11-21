@@ -1,7 +1,7 @@
 import asyncio
 
 from app.db.database import async_session, engine, Base
-from app.seeders.user import seed_user
+from app.seeders.users import seed_user
 from app.seeders.attractions import seed_attractions
 
 import logging
