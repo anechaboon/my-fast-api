@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import Integer, String, Boolean, DateTime
+from sqlalchemy import Integer, String, Boolean, Column, DateTime
 from app.db.database import Base
 from datetime import datetime, timezone
 
+def utc_now():
+    return datetime.now(timezone.utc)
 
 class Attractions(Base):
     __tablename__ = 'attractions'
@@ -13,5 +15,5 @@ class Attractions(Base):
     cover_image: Mapped[str] = mapped_column(String(200), nullable=True)
     location: Mapped[str] = mapped_column(String(200), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at: Mapped[DateTime] = mapped_column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

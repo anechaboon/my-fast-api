@@ -1,36 +1,103 @@
-from fastapi import FastAPI, Request
-from typing import Union
-from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
 
-class Product(BaseModel):
-    name: str
-    price: float
+from app.models.attractions import Attractions
+from app.schemas.attractions import AttractionResponse, AttractionListResponse, AttractionCreate, AttractionRead, AttractionUpdate
+from app.db.database import get_db, engine, Base
 
-app = FastAPI()
+import asyncio
 
-@app.get("/")
-def hello_world():
-    return {"message": "Hello, World!!"}
+app = FastAPI(title="Attractions API")
 
-@app.get("/users/{user_id}")
-def read_user(user_id: int, query_string: Union[str, None] = None):
-    return {"user_id": user_id, "query_string": query_string}
+# GET all attractions
+@app.get("/attractions", response_model=AttractionListResponse)
+async def get_attractions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Attractions))
+    data = result.scalars().all()
+    if not data:
+        return {
+            "data": None,
+            "message": "No attractions found",
+            "status": False,
+        }
+    return {
+        "data": data,
+        "message": "Attractions retrieved successfully",
+        "status": True,
+    }
 
-@app.post("/user")
-async def create_user(request: Request):
-    body = await request.json()
-    print('log:name', body["name"])
-    return {"user": body}
 
-@app.post("/product")
-def create_product(product: Product):
-    print('log:name', product.name)
-    return {"product": product}
+# GET single attraction by id
+@app.get("/attractions/{attraction_id}", response_model=AttractionResponse)
+async def get_attraction(attraction_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Attractions).where(Attractions.id == attraction_id))
+    data = result.scalar_one_or_none()
+    if not data:
+        return {
+            "data": None,
+            "message": "No attractions found",
+            "status": False,
+        }
+    return {
+        "data": data,
+        "message": "Attractions retrieved successfully",
+        "status": True,
+    }
 
-@app.put("/product/{product_id}")
-def update_product(product_id: int, product: Product):
-    return {"id": product_id, "product": product}
+# CREATE attraction
+@app.post("/attractions", response_model=AttractionResponse)
+async def create_attraction(attraction: AttractionCreate, db: AsyncSession = Depends(get_db)):
+    new_attraction = Attractions(**attraction.dict())
+    db.add(new_attraction)
+    await db.commit()
+    await db.refresh(new_attraction)
+    return {
+        "data": new_attraction,
+        "message": "Attraction created successfully",
+        "status": True,
+    }
 
-@app.delete("/product/{product_id}")
-def delete_product(product_id: int):
-    return {"message": f"Product with id {product_id} has been deleted"}
+# UPDATE attraction
+@app.put("/attractions/{attraction_id}", response_model=AttractionResponse)
+async def update_attraction(attraction_id: int, attraction: AttractionUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Attractions).where(Attractions.id == attraction_id))
+    existing = result.scalar_one_or_none()
+    if not existing:
+        return {
+            "data": None,
+            "message": "Attraction not found",
+            "status": False,
+        }
+    
+    for key, value in attraction.dict(exclude_unset=True).items():
+        setattr(existing, key, value)
+    
+    await db.commit()
+    await db.refresh(existing)
+    return {
+        "data": existing,
+        "message": "Attraction updated successfully",
+        "status": True,
+    }
+
+# DELETE attraction
+@app.delete("/attractions/{attraction_id}", response_model=AttractionResponse)
+async def delete_attraction(attraction_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Attractions).where(Attractions.id == attraction_id))
+    existing = result.scalar_one_or_none()
+    if not existing:
+        return {
+            "data": None,
+            "message": "Attraction not found",
+            "status": False,
+        }
+    
+    await db.delete(existing)
+    await db.commit()
+    return {
+        "data": None,
+        "message": "Attraction deleted successfully",
+        "status": True,
+    }

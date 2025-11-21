@@ -1,6 +1,8 @@
 from app.models.attractions import Attractions
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-def seed_attractions(db):
+async def seed_attractions(db: AsyncSession):
     attractions = [
         Attractions(
             name="Phi Phi Islands", 
@@ -33,8 +35,10 @@ def seed_attractions(db):
     ]
 
     for a in attractions:
-        exists = db.query(Attractions).filter_by(name=a.name).first()
+        # ตรวจสอบว่ามีอยู่แล้ว
+        result = await db.execute(select(Attractions).filter_by(name=a.name))
+        exists = result.scalar_one_or_none()
         if not exists:
             db.add(a)
-
-    db.commit()
+    
+    await db.commit()
