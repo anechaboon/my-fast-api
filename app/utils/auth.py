@@ -8,9 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.users import User
-import os
-from dotenv import load_dotenv
 import logging
+
+from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key_here")
 ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
 
 pwd_context = CryptContext(
     schemes=["argon2"],
@@ -32,22 +35,11 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
-    """
-    สร้าง JWT โดยแทรก claim 'exp' เป็น NumericDate (จำนวนเต็ม timestamp วินาที)
-    """
+def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
-    now = datetime.now(tz=timezone.utc)
-    if expires_delta:
-        expire = now + expires_delta
-    else:
-        expire = now + timedelta(minutes=15)
-
-    # RFC ต้องการ NumericDate (UNIX timestamp in seconds)
-    to_encode.update({"iat": int(now.timestamp()), "exp": int(expire.timestamp())}) # เพิ่ม claim 'exp' เป็น timestamp
-
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM) # สร้าง JWT
-    return encoded_jwt
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
@@ -76,3 +68,17 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
         return user
 
     return None
+
+
+async def get_current_user(db: AsyncSession, token: str) -> Optional[User]:
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+
+    username: str = payload.get("sub")
+    if username is None:
+        return None
+
+    result = await db.execute(select(User).where(User.email == username))
+    user = result.scalar_one_or_none()
+    return user
