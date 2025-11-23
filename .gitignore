@@ -4,3 +4,4 @@ __pycache__/
 alembic/script.py.mako
 .env
 *.pyc
+uploads/*
