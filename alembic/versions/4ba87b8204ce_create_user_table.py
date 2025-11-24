@@ -28,7 +28,11 @@ def upgrade() -> None:
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.sql.expression.true()),
     sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('created_by', sa.Integer(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.Column('deleted_at', sa.DateTime(), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
     sa.UniqueConstraint('username')

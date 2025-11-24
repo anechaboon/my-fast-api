@@ -15,4 +15,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(128), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
+    created_by = Column(Integer, nullable=True)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    updated_by = Column(Integer, nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_by = Column(Integer, nullable=True)

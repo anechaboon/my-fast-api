@@ -5,6 +5,9 @@ from sqlalchemy.future import select
 from app.models.attractions import Attractions
 from app.schemas.attractions import AttractionResponse, AttractionListResponse, AttractionCreate, AttractionRead, AttractionUpdate
 from app.db.database import get_db, engine, Base
+from app.utils.auth import oauth2_scheme, get_current_user
+from datetime import datetime, timezone
+
 
 # สร้าง APIRouter instance
 router = APIRouter(
@@ -15,7 +18,10 @@ router = APIRouter(
 # GET all attractions
 @router.get("/", response_model=AttractionListResponse)
 async def get_attractions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Attractions).order_by(Attractions.created_at.desc()))
+    result = await db.execute(select(Attractions)
+        .where(Attractions.deleted_at == None)
+        .order_by(Attractions.created_at.desc()))
+    
     data = result.scalars().all()
     if not data:
         return {
@@ -73,9 +79,10 @@ async def update_attraction(
     location: str = Form(...),
     description: str = Form(...),
     cover_image: UploadFile | None = File(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) 
 ):
-
+    user = await get_current_user(db, token)
     result = await db.execute(
         select(Attractions).where(Attractions.id == attraction_id)
     )
@@ -88,16 +95,12 @@ async def update_attraction(
             "status": False,
         }
 
-    # ---------------------
-    # 1) Update fields ปกติ
-    # ---------------------
     existing.name = name
     existing.location = location
     existing.description = description
+    existing.updated_by = user.id
+    existing.updated_at = datetime.now(timezone.utc)
 
-    # ---------------------
-    # 2) ถ้ามีการอัปโหลดรูป
-    # ---------------------
     if cover_image is not None:
         file_extension = os.path.splitext(cover_image.filename)[1]
         filename = f"{uuid.uuid4().hex}{file_extension}"
@@ -125,18 +128,24 @@ async def update_attraction(
 
 # DELETE attraction
 @router.delete("/{attraction_id}", response_model=AttractionResponse)
-async def delete_attraction(attraction_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Attractions).where(Attractions.id == attraction_id))
-    existing = result.scalar_one_or_none()
-    if not existing:
-        return {
-            "data": None,
-            "message": "Attraction not found",
-            "status": False,
-        }
+async def delete_attraction(
+    attraction_id: int, 
+    db: AsyncSession = Depends(get_db), 
+    token: str = Depends(oauth2_scheme)
+):
     
-    await db.delete(existing)
+    user = await get_current_user(db, token)
+    result = await db.execute(
+        select(Attractions).where(Attractions.id == attraction_id)
+    )
+    existing = result.scalar_one_or_none()
+    
+    existing.deleted_by = user.id
+    existing.deleted_at = datetime.now(timezone.utc)
+    
     await db.commit()
+    await db.refresh(existing)
+
     return {
         "data": None,
         "message": "Attraction deleted successfully",
