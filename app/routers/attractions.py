@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -7,7 +7,7 @@ from app.schemas.attractions import AttractionResponse, AttractionListResponse, 
 from app.db.database import get_db, engine, Base
 from app.utils.auth import oauth2_scheme, get_current_user
 from datetime import datetime, timezone
-
+from app.utils.helper import uploadFile
 
 # สร้าง APIRouter instance
 router = APIRouter(
@@ -55,11 +55,34 @@ async def get_attraction(attraction_id: int, db: AsyncSession = Depends(get_db))
 
 # CREATE attraction
 @router.post("/", response_model=AttractionResponse)
-async def create_attraction(attraction: AttractionCreate, db: AsyncSession = Depends(get_db)):
-    new_attraction = Attractions(**attraction.dict())
+async def create_attraction(
+    name: str = Form(...),
+    location: str = Form(...),
+    description: str = Form(...),
+    cover_image: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme) 
+):
+
+    res = {'status': False, 'data': None}
+    if cover_image is not None:
+        res = uploadFile(cover_image, "attractions")
+    
+    user = await get_current_user(db, token)
+    
+    new_attraction = Attractions(
+        name = name,
+        description = description,
+        location = location,
+        cover_image = res['data'],
+        created_by = user.id,
+        updated_by = user.id,
+    )
+
     db.add(new_attraction)
     await db.commit()
     await db.refresh(new_attraction)
+
     return {
         "data": new_attraction,
         "message": "Attraction created successfully",
@@ -67,11 +90,6 @@ async def create_attraction(attraction: AttractionCreate, db: AsyncSession = Dep
     }
 
 # UPDATE attraction
-from fastapi import UploadFile, File, Form
-import shutil
-import os
-import uuid
-
 @router.put("/{attraction_id}", response_model=AttractionResponse)
 async def update_attraction(
     attraction_id: int,
@@ -101,20 +119,12 @@ async def update_attraction(
     existing.updated_by = user.id
     existing.updated_at = datetime.now(timezone.utc)
 
+    res = {'status': False}
     if cover_image is not None:
-        file_extension = os.path.splitext(cover_image.filename)[1]
-        filename = f"{uuid.uuid4().hex}{file_extension}"
+        res = uploadFile(cover_image, "attractions")
         
-        upload_dir = "uploads/attractions"
-        os.makedirs(upload_dir, exist_ok=True)
-
-        file_location = f"{upload_dir}/{filename}"
-
-        with open(file_location, "wb") as buffer:
-            shutil.copyfileobj(cover_image.file, buffer)
-
-        # เซ็ต path เก็บใน DB (เช่น /uploads/attractions/xxx.jpg)
-        existing.cover_image = file_location
+    if res['status']:
+        existing.cover_image = res['data']
 
     await db.commit()
     await db.refresh(existing)
