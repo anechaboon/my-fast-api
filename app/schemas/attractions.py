@@ -2,16 +2,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-class AttractionListResponse(BaseModel):
-    data: List[AttractionRead]
-    message: str
-    status: bool
-
-class AttractionResponse(BaseModel):
-    data: Optional[AttractionRead]
-    message: str
-    status: bool
-
 class AttractionBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -19,18 +9,30 @@ class AttractionBase(BaseModel):
     location: Optional[str] = None
     is_active: Optional[bool] = True
 
+class AttractionRead(AttractionBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class AttractionListResponse(BaseModel):
+    data: List["AttractionRead"]  # ใส่ quotes
+    message: str
+    status: bool
+
+class AttractionResponse(BaseModel):
+    data: Optional["AttractionRead"]  # ใส่ quotes
+    message: str
+    status: bool
+
 class AttractionCreate(AttractionBase):
     pass
 
 class AttractionUpdate(AttractionBase):
     pass
 
-class AttractionRead(AttractionBase):
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {
-        "from_attributes": True
-    }
-        
+# update forward references
+AttractionListResponse.update_forward_refs()
+AttractionResponse.update_forward_refs()

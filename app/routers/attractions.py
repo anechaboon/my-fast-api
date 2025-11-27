@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.attractions import Attractions
-from app.schemas.attractions import AttractionResponse, AttractionListResponse, AttractionCreate, AttractionRead, AttractionUpdate
+from app.schemas.attractions import AttractionResponse, AttractionListResponse
 from app.db.database import get_db, engine, Base
 from app.utils.auth import oauth2_scheme, get_current_user
 from datetime import datetime, timezone
